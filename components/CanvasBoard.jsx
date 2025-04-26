@@ -14,6 +14,7 @@ export default function CanvasBoard({ roomId }) {
   const drawing = useRef(false);
   const lastPos = useRef({});
   const localPosRef = useRef(null);
+  const drawHistoryRef = useRef([]);
   const [isEraser, setIsEraser] = useState(false);
   const router = useRouter();
 
@@ -45,9 +46,8 @@ export default function CanvasBoard({ roomId }) {
           ctx.lineTo(ev.x, ev.y);
           ctx.stroke();
           lp[ev.id] = { x: ev.x, y: ev.y };
-        } else if (ev.type === "end") {
-          delete lp[ev.id];
         }
+        drawHistoryRef.current.push(ev);
       }
       lastPos.current = lp;
     });
@@ -60,6 +60,7 @@ export default function CanvasBoard({ roomId }) {
       ctx.lineWidth = lineWidth;
       ctx.moveTo(x, y);
       lastPos.current[id] = { x, y };
+      drawHistoryRef.current.push({ id, x, y, color, lineWidth, type: "start" });
     });
 
     socket.on("draw", ({ id, x, y, color, lineWidth }) => {
@@ -72,6 +73,7 @@ export default function CanvasBoard({ roomId }) {
       ctx.lineTo(x, y);
       ctx.stroke();
       lastPos.current[id] = { x, y };
+      drawHistoryRef.current.push({ id, x, y, color, lineWidth, type: "draw" });
     });
 
     socket.on("end", ({ id }) => {
@@ -81,6 +83,7 @@ export default function CanvasBoard({ roomId }) {
     socket.on("clear", () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       lastPos.current = {};
+      drawHistoryRef.current = [];
     });
 
     const down = (e) => {
@@ -89,11 +92,8 @@ export default function CanvasBoard({ roomId }) {
       const color = isEraser ? "white" : "black";
       const lineWidth = isEraser ? 20 : 2;
       localPosRef.current = { x, y };
-      ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = lineWidth;
-      ctx.moveTo(x, y);
       socket.emit("start", { x, y, color, lineWidth });
+      drawHistoryRef.current.push({ id: socketRef.current.id, x, y, color, lineWidth, type: "start" });
     };
 
     const move = (e) => {
@@ -114,6 +114,7 @@ export default function CanvasBoard({ roomId }) {
       ctx.stroke();
       localPosRef.current = { x, y };
       socket.emit("draw", { x, y, color, lineWidth });
+      drawHistoryRef.current.push({ id: socketRef.current.id, x, y, color, lineWidth, type: "draw" });
     };
 
     const up = () => {
@@ -144,6 +145,7 @@ export default function CanvasBoard({ roomId }) {
     ctxRef.current.clearRect(0, 0, canvas.width, canvas.height);
     lastPos.current = {};
     localPosRef.current = null;
+    drawHistoryRef.current = [];
     socketRef.current.emit("clear");
   };
 
@@ -152,9 +154,43 @@ export default function CanvasBoard({ roomId }) {
     router.push("/");
   };
 
+  const handleDownload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvasRef.current.width;
+    canvas.height = canvasRef.current.height;
+    const ctx = canvas.getContext("2d");
+
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const last = {};
+
+    for (const ev of drawHistoryRef.current) {
+      ctx.beginPath();
+      ctx.strokeStyle = ev.color;
+      ctx.lineWidth = ev.lineWidth;
+
+      if (ev.type === "start") {
+        ctx.moveTo(ev.x, ev.y);
+        last[ev.id] = { x: ev.x, y: ev.y };
+      } else if (ev.type === "draw") {
+        const prev = last[ev.id] || { x: ev.x, y: ev.y };
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(ev.x, ev.y);
+        ctx.stroke();
+        last[ev.id] = { x: ev.x, y: ev.y };
+      }
+    }
+
+    const link = document.createElement("a");
+    link.download = "drawing.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+
   return (
     <div className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-6">
-      <div className="mb-3 flex gap-3 justify-center">
+      <div className="mb-3 flex gap-3 justify-center flex-wrap">
         <button
           onClick={handleClear}
           className="px-4 py-1 rounded bg-red-600 text-white hover:bg-red-700"
@@ -168,6 +204,12 @@ export default function CanvasBoard({ roomId }) {
           } text-white hover:opacity-90`}
         >
           {isEraser ? "Eraser: ON" : "Eraser: OFF"}
+        </button>
+        <button
+          onClick={handleDownload}
+          className="px-4 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+        >
+          Download
         </button>
         <button
           onClick={handleLogout}
