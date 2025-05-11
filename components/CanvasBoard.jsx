@@ -16,7 +16,72 @@ export default function CanvasBoard({ roomId }) {
   const localPosRef = useRef(null);
   const drawHistoryRef = useRef([]);
   const [isEraser, setIsEraser] = useState(false);
+  const [selectedColor, setSelectedColor] = useState("#000000"); // default black color
+  const selectedColorRef = useRef(selectedColor);
+  const isEraserRef = useRef(isEraser); 
   const router = useRouter();
+
+  function getColor(isEraser, selectedColor) {
+    return isEraser ? "white" : selectedColor;
+  }
+
+  function createDrawingHandlers(ctxRef, socketRef, drawing, localPosRef, drawHistoryRef, selectedColorRef, isEraserRef) {
+    const down = (e) => {
+      drawing.current = true;
+      const { offsetX: x, offsetY: y } = e;
+      const color = getColor(isEraserRef.current, selectedColorRef.current);
+      const lineWidth = isEraserRef.current ? 20 : 2;
+      localPosRef.current = { x, y };
+      ctxRef.current.beginPath();
+      ctxRef.current.strokeStyle = color;
+      ctxRef.current.lineWidth = lineWidth;
+      ctxRef.current.moveTo(x, y);
+      socketRef.current.emit("start", { x, y, color, lineWidth });
+      drawHistoryRef.current.push({ id: socketRef.current.id, x, y, color, lineWidth, type: "start" });
+    };
+
+    const move = (e) => {
+      if (!drawing.current) return;
+      const { offsetX: x, offsetY: y } = e;
+      const prev = localPosRef.current;
+      if (!prev) {
+        localPosRef.current = { x, y };
+        return;
+      }
+      const color = getColor(isEraserRef.current, selectedColorRef.current);
+      const lineWidth = isEraserRef.current ? 20 :2;
+      ctxRef.current.beginPath();
+      ctxRef.current.strokeStyle = color;
+      ctxRef.current.lineWidth = lineWidth;
+      ctxRef.current.moveTo(prev.x, prev.y);
+      ctxRef.current.lineTo(x, y);
+      ctxRef.current.stroke();
+
+      localPosRef.current = { x, y };
+      socketRef.current.emit("draw", { x, y, color, lineWidth });
+      drawHistoryRef.current.push({ id: socketRef.current.id, x, y, color, lineWidth, type: "draw" });
+    };
+
+    const up = () => {
+      if (drawing.current) {
+        socketRef.current.emit("end", { id: socketRef.current.id });
+        ctxRef.current.beginPath();
+        localPosRef.current = null;
+      }
+      drawing.current = false;
+    };
+
+    return { down, move, up };
+  }
+
+  useEffect(() => {
+    selectedColorRef.current = selectedColor;
+  }, [selectedColor]);
+  
+  useEffect(() => {
+    isEraserRef.current = isEraser;
+  }, [isEraser]);
+  
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -86,45 +151,16 @@ export default function CanvasBoard({ roomId }) {
       drawHistoryRef.current = [];
     });
 
-    const down = (e) => {
-      drawing.current = true;
-      const { offsetX: x, offsetY: y } = e;
-      const color = isEraser ? "white" : "black";
-      const lineWidth = isEraser ? 20 : 2;
-      localPosRef.current = { x, y };
-      socket.emit("start", { x, y, color, lineWidth });
-      drawHistoryRef.current.push({ id: socketRef.current.id, x, y, color, lineWidth, type: "start" });
-    };
+    const { down, move, up } = createDrawingHandlers(
+      ctxRef,
+      socketRef,
+      drawing,
+      localPosRef,
+      drawHistoryRef,
+      selectedColorRef,
+      isEraserRef
+    );
 
-    const move = (e) => {
-      if (!drawing.current) return;
-      const { offsetX: x, offsetY: y } = e;
-      const prev = localPosRef.current;
-      if (!prev) {
-        localPosRef.current = { x, y };
-        return;
-      }
-      const color = isEraser ? "white" : "black";
-      const lineWidth = isEraser ? 20 : 2;
-      ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = lineWidth;
-      ctx.moveTo(prev.x, prev.y);
-      ctx.lineTo(x, y);
-      ctx.stroke();
-      localPosRef.current = { x, y };
-      socket.emit("draw", { x, y, color, lineWidth });
-      drawHistoryRef.current.push({ id: socketRef.current.id, x, y, color, lineWidth, type: "draw" });
-    };
-
-    const up = () => {
-      if (drawing.current) {
-        socket.emit("end", { id: socketRef.current.id });
-        ctx.beginPath();
-        localPosRef.current = null;
-      }
-      drawing.current = false;
-    };
 
     canvas.addEventListener("mousedown", down);
     canvas.addEventListener("mousemove", move);
@@ -191,6 +227,15 @@ export default function CanvasBoard({ roomId }) {
   return (
     <div className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-6">
       <div className="mb-3 flex gap-3 justify-center flex-wrap">
+
+        <input
+          type="color"
+          value={selectedColor}
+          onChange={(e) => setSelectedColor(e.target.value)}
+          className="w-10 h-10 p-0 border-none rounded-full cursor-pointer"
+        />
+        
+
         <button
           onClick={handleClear}
           className="px-4 py-1 rounded bg-red-600 text-white hover:bg-red-700"

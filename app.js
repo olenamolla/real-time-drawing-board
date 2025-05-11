@@ -1,13 +1,13 @@
-// 📁 server/app.js
+// server/app.js
 const http = require("http");
 const { Server } = require("socket.io");
 
-const server = http.createServer((_, res) =>
+const server = http.createServer((_, res) =>            // a basic HTTP server
   res.writeHead(200).end("Socket.IO server is running")
 );
 
-const io = new Server(server, {
-  cors: {
+const io = new Server(server, {   // io is the Socket.IO server instance
+  cors: {                 // cors ensures that frontend can talk to backend 
     origin: "http://localhost:3000",
     methods: ["GET", "POST"]
   },
@@ -16,15 +16,15 @@ const io = new Server(server, {
 // List of rooms and drawing history of each room
 const roomHistories = {}; // { roomId: [drawingEvents] }
 
-io.on("connection", (socket) => {
-  const roomId = socket.handshake.query.roomId;
+io.on("connection", (socket) => {   // listens for new cliend connections
+  const roomId = socket.handshake.query.roomId; 
 
   if (roomId) {
     socket.join(roomId);
     if (!roomHistories[roomId]) roomHistories[roomId] = [];
   }
 
-  // Create new room as requested by client
+  // Event: Create new room as requested by client
   socket.on("create-room", (roomCode, callback) => {
     if (!roomHistories[roomCode]) {
       roomHistories[roomCode] = [];
@@ -33,7 +33,7 @@ io.on("connection", (socket) => {
     callback();
   });
 
-  // Check if room exists
+  // Event: Check if room exists                      // used iin the JoinRoom flow
   socket.on("check-room", (roomCode, callback) => {
     const exists = !!roomHistories[roomCode];
     callback(exists);
@@ -74,5 +74,5 @@ io.on("connection", (socket) => {
 });
 
 server.listen(8080, () => {
-  console.log("🚀 Socket.IO server is running on http://localhost:8080");
+  console.log(" Socket.IO server is running on http://localhost:8080");
 });
