@@ -228,17 +228,33 @@ export default function CanvasBoard({ roomId }) {
     <div className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-6">
       <div className="mb-3 flex gap-3 justify-center flex-wrap">
 
-        <input
-          type="color"
-          value={selectedColor}
-          onChange={(e) => {
-            setSelectedColor(e.target.value);
-            setIsEraser(false);
-          }
-        }
-          className="w-10 h-10 p-0 border-none rounded-full cursor-pointer"
-        />
-        
+      <div className="flex items-center gap-3">
+      <label htmlFor="colorPicker" className="text-lg font-semibold text-gray-800">
+        Brush
+      </label>
+
+      <div className="w-12 h-10 rounded-md border-2 border-gray-400 bg-white shadow-sm p-0.5">
+      <input
+        id="colorPicker"
+        type="color"
+        value={selectedColor}
+        onChange={(e) => {
+          setSelectedColor(e.target.value);
+          setIsEraser(false);
+        }}
+        className="w-full h-full cursor-pointer border-none hover:scale-105"
+        title="Select brush color"
+        style={{
+          WebkitAppearance: "none",
+          MozAppearance: "none",
+          appearance: "none",
+          background: "none",
+          padding: 0,
+          border: "none",
+        }}
+      />
+    </div>
+  </div>
 
         <button
           onClick={handleClear}
