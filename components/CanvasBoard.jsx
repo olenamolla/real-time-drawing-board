@@ -174,7 +174,7 @@ export default function CanvasBoard({ roomId }) {
       canvas.removeEventListener("mouseleave", up);
       socket.disconnect();
     };
-  }, [isEraser, roomId]);
+  }, [roomId]);
 
   const handleClear = () => {
     const canvas = canvasRef.current;
@@ -231,7 +231,11 @@ export default function CanvasBoard({ roomId }) {
         <input
           type="color"
           value={selectedColor}
-          onChange={(e) => setSelectedColor(e.target.value)}
+          onChange={(e) => {
+            setSelectedColor(e.target.value);
+            setIsEraser(false);
+          }
+        }
           className="w-10 h-10 p-0 border-none rounded-full cursor-pointer"
         />
         
