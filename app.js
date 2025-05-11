@@ -2,6 +2,8 @@
 const http = require("http");
 const { Server } = require("socket.io");
 
+const usersInRoom = {}; // { roomId: [{ id, name }] }
+
 const server = http.createServer((_, res) =>            // a basic HTTP server
   res.writeHead(200).end("Socket.IO server is running")
 );
@@ -17,7 +19,7 @@ const io = new Server(server, {   // io is the Socket.IO server instance
 const roomHistories = {}; // { roomId: [drawingEvents] }
 
 io.on("connection", (socket) => {   // listens for new cliend connections
-  const roomId = socket.handshake.query.roomId; 
+  let roomId = socket.handshake.query.roomId; 
 
   if (roomId) {
     socket.join(roomId);
@@ -31,6 +33,17 @@ io.on("connection", (socket) => {   // listens for new cliend connections
       console.log("📌 Room created:", roomCode);
     }
     callback();
+  });
+
+
+  // Event: Join existing room as requested by client
+  socket.on("join-room", ({ roomId: incomingRoomId, displayName }) => {
+    roomId = incomingRoomId; // override it if passed from client
+    socket.join(roomId);
+    if (!usersInRoom[roomId]) usersInRoom[roomId] = [];
+  
+    usersInRoom[roomId].push({ id: socket.id, name: displayName });
+    io.to(roomId).emit("update-users", usersInRoom[roomId]);
   });
 
   // Event: Check if room exists                      // used iin the JoinRoom flow
@@ -71,7 +84,18 @@ io.on("connection", (socket) => {   // listens for new cliend connections
     roomHistories[roomId] = [];
     io.to(roomId).emit("clear");
   });
+
+  // This event is triggered when a user disconnects from the server
+  socket.on("disconnect", () => {
+    if (roomId && usersInRoom[roomId]) {
+      usersInRoom[roomId] = usersInRoom[roomId].filter((u) => u.id !== socket.id);
+      io.to(roomId).emit("update-users", usersInRoom[roomId]);
+      }
+  });
 });
+
+
+
 
 server.listen(8080, () => {
   console.log(" Socket.IO server is running on http://localhost:8080");

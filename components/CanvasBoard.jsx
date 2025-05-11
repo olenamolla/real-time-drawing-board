@@ -19,6 +19,8 @@ export default function CanvasBoard({ roomId }) {
   const [selectedColor, setSelectedColor] = useState("#000000"); // default black color
   const selectedColorRef = useRef(selectedColor);
   const isEraserRef = useRef(isEraser); 
+  const [users, setUsers] = useState([]);
+
   const router = useRouter();
 
   function getColor(isEraser, selectedColor) {
@@ -94,6 +96,16 @@ export default function CanvasBoard({ roomId }) {
 
     const socket = io(SOCKET_URL, { query: { roomId } });
     socketRef.current = socket;
+
+    socket.emit("join-room", {
+      roomId,
+      displayName: auth.currentUser?.displayName || "Anonymous",
+    });
+
+    // Check if the room exists
+    socket.on("update-users", (userList) => {
+      setUsers(userList);
+    });
 
     socket.on("history", (events) => {
       const lp = {};
@@ -225,6 +237,21 @@ export default function CanvasBoard({ roomId }) {
   };
 
   return (
+    <> 
+    
+    {/* Connected Users Panel */}
+    <div className="absolute top-20 left-6 w-52 max-h-64 overflow-y-auto bg-white border border-gray-300 rounded-md shadow-md p-3 text-sm z-50">
+      <h3 className="font-semibold mb-2">👥 Connected:</h3>
+      <ul className="space-y-1">
+        {users.map((user) => (
+          <li key={user.id} className="text-gray-700">
+            • {user.name}
+          </li>
+        ))}
+      </ul>
+    </div>
+
+
     <div className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-6">
       <div className="mb-3 flex gap-3 justify-center flex-wrap">
 
@@ -233,28 +260,28 @@ export default function CanvasBoard({ roomId }) {
         Brush
       </label>
 
-      <div className="w-12 h-10 rounded-md border-2 border-gray-400 bg-white shadow-sm p-0.5">
-      <input
-        id="colorPicker"
-        type="color"
-        value={selectedColor}
-        onChange={(e) => {
-          setSelectedColor(e.target.value);
-          setIsEraser(false);
-        }}
-        className="w-full h-full cursor-pointer border-none hover:scale-105"
-        title="Select brush color"
-        style={{
-          WebkitAppearance: "none",
-          MozAppearance: "none",
-          appearance: "none",
-          background: "none",
-          padding: 0,
-          border: "none",
-        }}
-      />
-    </div>
-  </div>
+          <div className="w-12 h-10 rounded-md border-2 border-gray-400 bg-white shadow-sm p-0.5">
+          <input
+            id="colorPicker"
+            type="color"
+            value={selectedColor}
+            onChange={(e) => {
+              setSelectedColor(e.target.value);
+              setIsEraser(false);
+            }}
+            className="w-full h-full cursor-pointer border-none hover:scale-105"
+            title="Select brush color"
+            style={{
+              WebkitAppearance: "none",
+              MozAppearance: "none",
+              appearance: "none",
+              background: "none",
+              padding: 0,
+              border: "none",
+            }}
+          />
+        </div>
+      </div>
 
         <button
           onClick={handleClear}
@@ -296,5 +323,7 @@ export default function CanvasBoard({ roomId }) {
         />
       </div>
     </div>
+
+    </> 
   );
 }
