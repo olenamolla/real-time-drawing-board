@@ -21,6 +21,7 @@ export default function CanvasBoard({ roomId }) {
   const isEraserRef = useRef(isEraser); 
   const [users, setUsers] = useState([]);
   const [cursorPos, setCursorPos] = useState(null); // For showing local user name during draw
+  const [remoteCursors, setRemoteCursors] = useState({});
 
   const router = useRouter();
 
@@ -29,6 +30,7 @@ export default function CanvasBoard({ roomId }) {
   }
 
   function createDrawingHandlers(ctxRef, socketRef, drawing, localPosRef, drawHistoryRef, selectedColorRef, isEraserRef) {
+    const displayName = auth.currentUser?.displayName || "Anonymous";
     const down = (e) => {
       drawing.current = true;
       const { offsetX: x, offsetY: y } = e;
@@ -43,7 +45,7 @@ export default function CanvasBoard({ roomId }) {
       ctxRef.current.strokeStyle = color;
       ctxRef.current.lineWidth = lineWidth;
       ctxRef.current.moveTo(x, y);
-      socketRef.current.emit("start", { x, y, color, lineWidth }); // send name
+      socketRef.current.emit("start", { x, y, color, lineWidth, displayName }); // send name
       drawHistoryRef.current.push({ id: socketRef.current.id, x, y, color, lineWidth, type: "start" });
     };
 
@@ -71,7 +73,7 @@ export default function CanvasBoard({ roomId }) {
       
 
       localPosRef.current = { x, y };
-      socketRef.current.emit("draw", { x, y, color, lineWidth });
+      socketRef.current.emit("draw", { x, y, color, lineWidth, displayName });
       drawHistoryRef.current.push({ id: socketRef.current.id, x, y, color, lineWidth, type: "draw" });
     };
 
@@ -143,17 +145,20 @@ export default function CanvasBoard({ roomId }) {
 
     socket.emit("request-history");
 
-    socket.on("start", ({ id, x, y, color, lineWidth }) => {
+    socket.on("start", ({ id, x, y, color, lineWidth, displayName }) => {
       ctx.beginPath();
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
       ctx.moveTo(x, y);
       lastPos.current[id] = { x, y };
       drawHistoryRef.current.push({ id, x, y, color, lineWidth, name, type: "start" });
-
+  setRemoteCursors((prev) => ({
+    ...prev,
+    [id]: { x, y, name: displayName }
+  }));
     });
 
-    socket.on("draw", ({ id, x, y, color, lineWidth }) => {
+    socket.on("draw", ({ id, x, y, color, lineWidth, displayName }) => {
       const prev = lastPos.current[id];
       if (!prev) return;
 
@@ -167,10 +172,19 @@ export default function CanvasBoard({ roomId }) {
       
       lastPos.current[id] = { x, y };
       drawHistoryRef.current.push({ id, x, y, color, lineWidth, name, type: "draw" });
+        setRemoteCursors((prev) => ({
+    ...prev,
+    [id]: { x, y, name: displayName }
+  }));
     });
 
     socket.on("end", ({ id }) => {
       delete lastPos.current[id];
+        setRemoteCursors((prev) => {
+    const copy = { ...prev };
+    delete copy[id];
+    return copy;
+  });
     });
 
     socket.on("clear", () => {
@@ -264,9 +278,21 @@ export default function CanvasBoard({ roomId }) {
             left: cursorPos.x + 6,
           }}
         >
-          {auth.currentUser?.displayName || "Anonymous"}
         </div>
       )}
+      {/* 🔹 Floating names for REMOTE USERS */}
+      {Object.entries(remoteCursors).map(([id, cursor]) => (
+      <div
+        key={id}
+        className="absolute pointer-events-none text-xs font-medium text-black bg-white/80 px-1 rounded z-50"
+        style={{
+        top: cursor.y + 350,
+        left: cursor.x - 45,
+      }}
+    >
+      {cursor.name}
+    </div>
+  ))}
 
     {/* Connected Users Panel */}
     <div className="absolute top-20 left-6 w-52 max-h-64 overflow-y-auto bg-white border border-gray-300 rounded-md shadow-md p-3 text-sm z-50">
@@ -286,7 +312,7 @@ export default function CanvasBoard({ roomId }) {
 
       <div className="flex items-center gap-3">
       <label htmlFor="colorPicker" className="text-lg font-semibold text-gray-800">
-        Brush
+        Choose color:
       </label>
 
           <div className="w-12 h-10 rounded-md border-2 border-gray-400 bg-white shadow-sm p-0.5">
@@ -312,12 +338,7 @@ export default function CanvasBoard({ roomId }) {
         </div>
       </div>
 
-        <button
-          onClick={handleClear}
-          className="px-4 py-1 rounded bg-red-600 text-white hover:bg-red-700"
-        >
-          Clear board
-        </button>
+        
         <button
           onClick={() => setIsEraser((prev) => !prev)}
           className={`px-4 py-1 rounded ${
@@ -326,6 +347,14 @@ export default function CanvasBoard({ roomId }) {
         >
           {isEraser ? "Eraser: ON" : "Eraser: OFF"}
         </button>
+
+        <button
+          onClick={handleClear}
+          className="px-4 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+        >
+          Clear board
+        </button>
+
         <button
           onClick={handleDownload}
           className="px-4 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
@@ -340,7 +369,7 @@ export default function CanvasBoard({ roomId }) {
         </button>
       </div>
 
-      <div className="w-full max-w-6xl aspect-video">
+      <div className="w-full max-w-6xl aspect-video relative">
         <canvas
           ref={canvasRef}
           className="w-full h-full block border border-gray-400 rounded shadow"
