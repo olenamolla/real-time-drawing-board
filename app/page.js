@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 export default function HomePage() {
   const [user, setUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -13,6 +14,9 @@ export default function HomePage() {
       setUser(user || null);
       if (user) {
         router.push("/draw"); // Redirect when signed in
+      } 
+      else {
+        setCheckingAuth(false); // <- now we’re done checking
       }
     });
     return () => unsubscribe();
@@ -21,6 +25,9 @@ export default function HomePage() {
   const handleLogin = async () => {
     await signInWithPopup(auth, provider);
   };
+
+  // Don’t render anything while checking auth
+  if (checkingAuth) return null;
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
