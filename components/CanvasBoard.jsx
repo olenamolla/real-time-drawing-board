@@ -20,6 +20,7 @@ export default function CanvasBoard({ roomId }) {
   const selectedColorRef = useRef(selectedColor);
   const isEraserRef = useRef(isEraser); 
   const [users, setUsers] = useState([]);
+  const [cursorPos, setCursorPos] = useState(null); // For showing local user name during draw
 
   const router = useRouter();
 
@@ -33,12 +34,16 @@ export default function CanvasBoard({ roomId }) {
       const { offsetX: x, offsetY: y } = e;
       const color = getColor(isEraserRef.current, selectedColorRef.current);
       const lineWidth = isEraserRef.current ? 20 : 2;
+      
+      setCursorPos({ x, y }); //  Show name near stroke
+
+
       localPosRef.current = { x, y };
       ctxRef.current.beginPath();
       ctxRef.current.strokeStyle = color;
       ctxRef.current.lineWidth = lineWidth;
       ctxRef.current.moveTo(x, y);
-      socketRef.current.emit("start", { x, y, color, lineWidth });
+      socketRef.current.emit("start", { x, y, color, lineWidth }); // send name
       drawHistoryRef.current.push({ id: socketRef.current.id, x, y, color, lineWidth, type: "start" });
     };
 
@@ -46,18 +51,24 @@ export default function CanvasBoard({ roomId }) {
       if (!drawing.current) return;
       const { offsetX: x, offsetY: y } = e;
       const prev = localPosRef.current;
+      setCursorPos({ x, y }); // Update name label position
+
       if (!prev) {
         localPosRef.current = { x, y };
         return;
       }
       const color = getColor(isEraserRef.current, selectedColorRef.current);
       const lineWidth = isEraserRef.current ? 20 :2;
+      
+
       ctxRef.current.beginPath();
       ctxRef.current.strokeStyle = color;
       ctxRef.current.lineWidth = lineWidth;
       ctxRef.current.moveTo(prev.x, prev.y);
       ctxRef.current.lineTo(x, y);
       ctxRef.current.stroke();
+
+      
 
       localPosRef.current = { x, y };
       socketRef.current.emit("draw", { x, y, color, lineWidth });
@@ -69,6 +80,7 @@ export default function CanvasBoard({ roomId }) {
         socketRef.current.emit("end", { id: socketRef.current.id });
         ctxRef.current.beginPath();
         localPosRef.current = null;
+        setCursorPos(null); //  Hide name when done
       }
       drawing.current = false;
     };
@@ -137,20 +149,24 @@ export default function CanvasBoard({ roomId }) {
       ctx.lineWidth = lineWidth;
       ctx.moveTo(x, y);
       lastPos.current[id] = { x, y };
-      drawHistoryRef.current.push({ id, x, y, color, lineWidth, type: "start" });
+      drawHistoryRef.current.push({ id, x, y, color, lineWidth, name, type: "start" });
+
     });
 
     socket.on("draw", ({ id, x, y, color, lineWidth }) => {
       const prev = lastPos.current[id];
       if (!prev) return;
+
       ctx.beginPath();
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
       ctx.moveTo(prev.x, prev.y);
       ctx.lineTo(x, y);
       ctx.stroke();
+
+      
       lastPos.current[id] = { x, y };
-      drawHistoryRef.current.push({ id, x, y, color, lineWidth, type: "draw" });
+      drawHistoryRef.current.push({ id, x, y, color, lineWidth, name, type: "draw" });
     });
 
     socket.on("end", ({ id }) => {
@@ -239,6 +255,19 @@ export default function CanvasBoard({ roomId }) {
   return (
     <> 
     
+    {/* 🔹 Floating name during draw */}
+    {cursorPos && (
+        <div
+          className="absolute pointer-events-none text-xs font-medium text-black bg-white/80 px-1 rounded z-50"
+          style={{
+            top: cursorPos.y + 2,
+            left: cursorPos.x + 6,
+          }}
+        >
+          {auth.currentUser?.displayName || "Anonymous"}
+        </div>
+      )}
+
     {/* Connected Users Panel */}
     <div className="absolute top-20 left-6 w-52 max-h-64 overflow-y-auto bg-white border border-gray-300 rounded-md shadow-md p-3 text-sm z-50">
       <h3 className="font-semibold mb-2">👥 Connected:</h3>

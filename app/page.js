@@ -14,7 +14,8 @@ export default function HomePage() {
       setUser(user || null);
       if (user) {
         router.push("/draw"); // Redirect when signed in
-      } else {
+      } 
+      else {
         setCheckingAuth(false); // <- now we’re done checking
       }
     });

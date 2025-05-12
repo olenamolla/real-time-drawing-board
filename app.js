@@ -60,6 +60,7 @@ io.on("connection", (socket) => {   // listens for new cliend connections
 
   socket.on("start", (data) => {
     if (!roomId) return;
+    
     const event = { ...data, id: socket.id, type: "start" };
     roomHistories[roomId].push(event);
     socket.to(roomId).emit("start", event);
@@ -67,7 +68,8 @@ io.on("connection", (socket) => {   // listens for new cliend connections
 
   socket.on("draw", (data) => {
     if (!roomId) return;
-    const event = { ...data, id: socket.id, type: "draw" };
+    
+    const event = { ...data, id: socket.id, type: "draw"};
     roomHistories[roomId].push(event);
     socket.to(roomId).emit("draw", event);
   });
